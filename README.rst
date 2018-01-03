@@ -37,6 +37,7 @@ https://github.com/idlesign/diadump
 ею и воспользуемся:
 
 .. code-block:: bash
+
     $ sudo pip3 install diadump
 
 
