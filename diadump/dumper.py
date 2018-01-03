@@ -55,16 +55,16 @@ def get_next_page_url(soup):
 def extract_images(html, target_dir):
     LOGGER.debug('Extracting images ...')
 
-    images_urls = RE_IMAGE_COMMENT.findall(html)
+    images_urls = []
 
-    idx = 0
-
-    for image_url in images_urls:
+    for image_url in RE_IMAGE_COMMENT.findall(html):
         image_url = image_url.strip()
-        if not image_url:
-            continue
+        image_url and images_urls.append(image_url)
 
-        idx += 1
+    total = len(images_urls)
+
+    for idx, image_url in enumerate(images_urls, 1):
+        LOGGER.info('Image [%s/%s] ...', idx, total)
 
         target_fname = path.basename(image_url)
         target_fname = str(idx).zfill(3) + path.splitext(target_fname)[1]
@@ -79,8 +79,8 @@ def extract_images(html, target_dir):
                 f.write(chunk)
 
 
-def walk_pages(url):
-    LOGGER.debug('Fetching %s ...', url)
+def walk_pages(url, page_num=0):
+    LOGGER.info('Page %s ...', url)
 
     soup = make_soup(get_data(url))
 
@@ -90,7 +90,7 @@ def walk_pages(url):
     LOGGER.debug('Next URL is: %s', next_url)
 
     if next_url:
-        yield from walk_pages(next_url)
+        yield from walk_pages(next_url, page_num+1)
 
 
 def dump_one(url, target_dir):
@@ -98,7 +98,7 @@ def dump_one(url, target_dir):
     soup = make_soup(html)
     item_title = soup.select('#news-title')[0].text
 
-    LOGGER.info('Dumping %s ...', item_title)
+    LOGGER.info('Processing `%s` ...', item_title)
 
     title_dir = path.join(target_dir, item_title)
 
@@ -107,9 +107,16 @@ def dump_one(url, target_dir):
 
 
 def dump_many(url, target_dir, max_titles=float('inf')):
-    for idx, item_url in enumerate(walk_pages(url), 1):
+    titles_urls = []
 
-        dump_one(item_url, target_dir)
+    for idx, title_url in enumerate(walk_pages(url), 1):
+        titles_urls.append(title_url)
 
         if idx == max_titles:
             break
+
+    total = len(titles_urls)
+
+    for idx, title_url in enumerate(titles_urls, 1):
+        LOGGER.info('Title [%s/%s] ...', idx, total)
+        dump_one(title_url, target_dir)
