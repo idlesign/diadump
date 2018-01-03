@@ -37,7 +37,7 @@ def extract_titles(soup):
     titles = soup.select('.news2 h3 a')
 
     for title in titles:
-        yield title['href']
+        yield title['href'], title.text.strip()
 
 
 def get_next_page_url(soup):
@@ -52,7 +52,7 @@ def get_next_page_url(soup):
     return next_page_url
 
 
-def extract_images(html, target_dir):
+def extract_images(html, target_dir, force=False):
     LOGGER.debug('Extracting images ...')
 
     images_urls = []
@@ -70,13 +70,17 @@ def extract_images(html, target_dir):
         target_fname = str(idx).zfill(3) + path.splitext(target_fname)[1]
         target_fname = path.join(target_dir, target_fname)
 
-        LOGGER.debug('Saving into %s ...', target_fname)
+        if not path.exists(target_fname) or force:
 
-        response = get_data(image_url, stream=True)
+            LOGGER.debug('Saving into %s ...', target_fname)
 
-        with open(target_fname, 'wb') as f:
-            for chunk in response.iter_content():
-                f.write(chunk)
+            response = get_data(image_url, stream=True)
+
+            with open(target_fname, 'wb') as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+        else:
+            LOGGER.debug('Image already exists. Skipped')
 
 
 def walk_pages(url, page_num=0):
@@ -93,24 +97,40 @@ def walk_pages(url, page_num=0):
         yield from walk_pages(next_url, page_num+1)
 
 
-def dump_one(url, target_dir):
+def build_title_dir(target_dir, item_title, force=False):
+    title_dir = path.join(target_dir, item_title)
+
+    if not path.exists(title_dir) or force:
+        return title_dir
+
+    else:
+        LOGGER.debug('Title directory already exists. Skipped')
+
+
+def dump_one(url, target_dir, force=False):
     html = get_data(url)
     soup = make_soup(html)
     item_title = soup.select('#news-title')[0].text
 
     LOGGER.info('Processing `%s` ...', item_title)
 
-    title_dir = path.join(target_dir, item_title)
+    title_dir = build_title_dir(target_dir, item_title)
 
-    makedirs(title_dir, exist_ok=True)
-    extract_images(html, title_dir)
+    if title_dir:
+        makedirs(title_dir, exist_ok=True)
+        extract_images(html, title_dir, force=force)
 
 
-def dump_many(url, target_dir, max_titles=float('inf')):
+def dump_many(url, target_dir, max_titles=float('inf'), force=False):
     titles_urls = []
 
-    for idx, title_url in enumerate(walk_pages(url), 1):
-        titles_urls.append(title_url)
+    for idx, (title_url, title_header) in enumerate(walk_pages(url), 1):
+
+        if build_title_dir(target_dir, title_header, force=force):
+            titles_urls.append(title_url)
+
+        else:
+            LOGGER.info('Skipping `%s` ...', title_header)
 
         if idx == max_titles:
             break
@@ -119,4 +139,4 @@ def dump_many(url, target_dir, max_titles=float('inf')):
 
     for idx, title_url in enumerate(titles_urls, 1):
         LOGGER.info('Title [%s/%s] ...', idx, total)
-        dump_one(title_url, target_dir)
+        dump_one(title_url, target_dir, force=force)
