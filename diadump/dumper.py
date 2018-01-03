@@ -1,7 +1,6 @@
 import logging
 import re
 from os import path, makedirs
-from time import sleep
 
 import requests
 from bs4 import BeautifulSoup
@@ -91,7 +90,6 @@ def walk_pages(url):
     LOGGER.debug('Next URL is: %s', next_url)
 
     if next_url:
-        sleep(1)
         yield from walk_pages(next_url)
 
 
